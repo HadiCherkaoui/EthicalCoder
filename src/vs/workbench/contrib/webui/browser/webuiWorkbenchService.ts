@@ -108,35 +108,19 @@ export class WebUIWorkbenchService implements IWebUIService {
 						<meta charset="UTF-8">
 						<meta http-equiv="Content-Security-Policy" content="
 							default-src 'none';
-							script-src 'unsafe-inline';
+							script-src 'unsafe-inline' https://cdnjs.cloudflare.com;
 							connect-src ${endpoint};
-							style-src 'unsafe-inline';">
+							style-src 'unsafe-inline' https://cdnjs.cloudflare.com;
+							font-src https://cdnjs.cloudflare.com;">
+						<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/vs2015.min.css">
+						<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+						<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 						<style>
 							body {
 								padding: 20px;
 								font-family: var(--monaco-monospace-font);
 								background: var(--vscode-editor-background);
 								color: var(--vscode-editor-foreground);
-							}
-							#models {
-								margin-bottom: 20px;
-							}
-							select, textarea, button {
-								width: 100%;
-								padding: 8px;
-								margin-bottom: 10px;
-								background: var(--vscode-input-background);
-								color: var(--vscode-input-foreground);
-								border: 1px solid var(--vscode-input-border);
-								border-radius: 2px;
-							}
-							button {
-								background: var(--vscode-button-background);
-								color: var(--vscode-button-foreground);
-								cursor: pointer;
-							}
-							button:hover {
-								background: var(--vscode-button-hoverBackground);
 							}
 							#chatHistory {
 								margin: 20px 0;
@@ -150,6 +134,7 @@ export class WebUIWorkbenchService implements IWebUIService {
 								margin: 10px 0;
 								padding: 10px;
 								border-radius: 4px;
+								white-space: pre-wrap;
 							}
 							.user-message {
 								background: var(--vscode-textBlockQuote-background);
@@ -159,11 +144,55 @@ export class WebUIWorkbenchService implements IWebUIService {
 								background: var(--vscode-editor-inactiveSelectionBackground);
 								margin-right: 20px;
 							}
+							textarea {
+								width: 100%;
+								padding: 8px;
+								margin: 10px 0;
+								background: var(--vscode-input-background);
+								color: var(--vscode-input-foreground);
+								border: 1px solid var(--vscode-input-border);
+								resize: vertical;
+							}
+							button {
+								background: var(--vscode-button-background);
+								color: var(--vscode-button-foreground);
+								border: none;
+								padding: 8px 16px;
+								cursor: pointer;
+							}
+							#models {
+								margin-bottom: 20px;
+							}
+							select {
+								width: 100%;
+								padding: 8px;
+								margin-bottom: 10px;
+								background: var(--vscode-input-background);
+								color: var(--vscode-input-foreground);
+								border: 1px solid var(--vscode-input-border);
+							}
+							.markdown-body {
+								color: var(--vscode-editor-foreground);
+								font-family: var(--monaco-monospace-font);
+								line-height: 1.6;
+							}
+							.markdown-body pre {
+								background: var(--vscode-textBlockQuote-background);
+								padding: 16px;
+								border-radius: 4px;
+								overflow: auto;
+							}
+							.markdown-body code {
+								font-family: var(--monaco-monospace-font);
+								background: var(--vscode-textBlockQuote-background);
+								padding: 0.2em 0.4em;
+								border-radius: 3px;
+							}
 						</style>
 						<script>
 							const vscode = acquireVsCodeApi();
 							let selectedModel = '';
-							let conversationHistory = []; // Store conversation history
+							let conversationHistory = [];
 
 							async function fetchModels() {
 								try {
@@ -179,7 +208,6 @@ export class WebUIWorkbenchService implements IWebUIService {
 
 									const data = await response.json();
 									const models = data.data || [];
-
 									const select = document.getElementById('modelSelect');
 									select.innerHTML = '';
 
@@ -198,8 +226,36 @@ export class WebUIWorkbenchService implements IWebUIService {
 									selectedModel = models[0].id;
 								} catch (error) {
 									console.error('Error:', error);
-									document.getElementById('status').textContent = error.message;
+									addMessageToChat('assistant', 'Error loading models: ' + error.message);
 								}
+							}
+
+							// Configure marked
+							marked.setOptions({
+								highlight: function(code, lang) {
+									return hljs.highlightAuto(code).value;
+								},
+								langPrefix: 'hljs language-'
+							});
+
+							function addMessageToChat(role, content) {
+								const chatHistory = document.getElementById('chatHistory');
+								const messageDiv = document.createElement('div');
+								messageDiv.className = 'message ' + (role === 'user' ? 'user-message' : 'bot-message markdown-body');
+
+								if (role === 'assistant') {
+									messageDiv.innerHTML = marked.parse(content);
+									// Highlight code blocks
+									messageDiv.querySelectorAll('pre code').forEach((block) => {
+										hljs.highlightBlock(block);
+									});
+								} else {
+									messageDiv.textContent = content;
+								}
+
+								chatHistory.appendChild(messageDiv);
+								chatHistory.scrollTop = chatHistory.scrollHeight;
+								return messageDiv;
 							}
 
 							async function sendMessage() {
@@ -208,9 +264,6 @@ export class WebUIWorkbenchService implements IWebUIService {
 
 								if (!message) return;
 
-								// Add user message to history and chat
-								const userMessage = { role: 'user', content: message };
-								conversationHistory.push(userMessage);
 								addMessageToChat('user', message);
 								messageInput.value = '';
 
@@ -223,24 +276,17 @@ export class WebUIWorkbenchService implements IWebUIService {
 										},
 										body: JSON.stringify({
 											model: selectedModel,
-											messages: conversationHistory, // Send full conversation history
+											messages: [...conversationHistory, { role: 'user', content: message }],
 											stream: true
 										})
 									});
 
-									if (!response.ok) {
-										throw new Error('Failed to send message');
-									}
-
-									// Create a new message div for the bot response
-									const chatHistory = document.getElementById('chatHistory');
-									const messageDiv = document.createElement('div');
-									messageDiv.className = 'message bot-message';
-									chatHistory.appendChild(messageDiv);
+									if (!response.ok) throw new Error('Failed to send message');
 
 									const reader = response.body.getReader();
 									const decoder = new TextDecoder();
 									let botResponse = '';
+									const messageDiv = addMessageToChat('assistant', '');
 
 									while (true) {
 										const { value, done } = await reader.read();
@@ -255,7 +301,10 @@ export class WebUIWorkbenchService implements IWebUIService {
 													const data = JSON.parse(line.slice(6));
 													if (data.choices[0]?.delta?.content) {
 														botResponse += data.choices[0].delta.content;
-														messageDiv.textContent = botResponse;
+														messageDiv.innerHTML = marked.parse(botResponse);
+														messageDiv.querySelectorAll('pre code').forEach((block) => {
+															hljs.highlightBlock(block);
+														});
 														chatHistory.scrollTop = chatHistory.scrollHeight;
 													}
 												} catch (e) {
@@ -265,22 +314,15 @@ export class WebUIWorkbenchService implements IWebUIService {
 										}
 									}
 
-									// Add assistant's response to conversation history
-									conversationHistory.push({ role: 'assistant', content: botResponse });
+									conversationHistory.push(
+										{ role: 'user', content: message },
+										{ role: 'assistant', content: botResponse }
+									);
 
 								} catch (error) {
 									console.error('Error:', error);
-									document.getElementById('status').textContent = error.message;
+									addMessageToChat('assistant', 'Error: ' + error.message);
 								}
-							}
-
-							function addMessageToChat(role, content) {
-								const chatHistory = document.getElementById('chatHistory');
-								const messageDiv = document.createElement('div');
-								messageDiv.className = 'message ' + (role === 'user' ? 'user-message' : 'bot-message');
-								messageDiv.textContent = content;
-								chatHistory.appendChild(messageDiv);
-								chatHistory.scrollTop = chatHistory.scrollHeight;
 							}
 
 							window.addEventListener('load', fetchModels);
@@ -288,7 +330,6 @@ export class WebUIWorkbenchService implements IWebUIService {
 					</head>
 					<body>
 						<div id="models">
-							<h3>Select Model</h3>
 							<select id="modelSelect" onchange="selectedModel = this.value">
 								<option value="">Loading models...</option>
 							</select>
@@ -302,10 +343,8 @@ export class WebUIWorkbenchService implements IWebUIService {
 							</textarea>
 							<button onclick="sendMessage()">Send</button>
 						</div>
-						<div id="status"></div>
 					</body>
-				</html>
-			`);
+				</html>`);
 		} catch (error) {
 			this.logService.error('[WebUI] Failed to open composer:', error);
 			throw error;
