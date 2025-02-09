@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See LICENSE.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWebUIService, WebUIOptions } from '../../../../platform/webui/common/webuiService.js';
+import { IWebUIService } from '../../../../platform/webui/common/webuiService.js';
 import { IWebviewWorkbenchService } from '../../webviewPanel/browser/webviewWorkbenchService.js';
-import { WebUIMessage, IResponseMessage, IInitializeMessage } from '../common/webuiProtocol.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
@@ -16,28 +14,28 @@ export class WebUIWorkbenchService implements IWebUIService {
 	constructor(
 		@IWebviewWorkbenchService private readonly webviewWorkbenchService: IWebviewWorkbenchService,
 		@ILogService private readonly logService: ILogService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		this.logService.info('[WebUI] Service constructed');
 	}
 
-	async openChat(options?: WebUIOptions): Promise<void> {
+	async openChat(): Promise<void> {
 		this.logService.info('[WebUI] openChat called');
-		const endpoint = this.configurationService.getValue<string>('webui.endpoint') || 'http://localhost:3000';
+		const endpoint = this.configurationService.getValue<string>('webui.endpoint');
+		if (!endpoint) {
+			this.logService.error('[WebUI] No endpoint configured. Please set webui.endpoint in settings.');
+			throw new Error('No endpoint configured. Please set webui.endpoint in settings.');
+		}
 		try {
-			this.logService.info('[WebUI] Creating webview...');
 			const webviewInput = this.webviewWorkbenchService.openWebview(
 				{
 					title: 'AI Chat',
 					options: {
-						retainContextWhenHidden: options?.retainContextWhenHidden ?? true,
 						enableFindWidget: true
 					},
 					contentOptions: {
 						allowScripts: true,
-						localResourceRoots: [],
-						enableCommandUris: true
+						localResourceRoots: []
 					},
 					extension: undefined
 				},
@@ -45,65 +43,15 @@ export class WebUIWorkbenchService implements IWebUIService {
 				'AI Chat',
 				{ preserveFocus: false }
 			);
-			this.logService.info('[WebUI] Webview created successfully');
 
-			webviewInput.webview.onMessage(async (e: any) => {
-				this.logService.info('WebUIWorkbenchService: Received message', e);
-				const message = e as WebUIMessage;
-				switch (message.type) {
-					case 'ready':
-						try {
-							const initMessage: IInitializeMessage = {
-								type: 'initialize',
-								payload: {
-									version: '1.0.0',
-									features: {
-										commands: true
-									}
-								}
-							};
-							await webviewInput.webview.postMessage(initMessage);
-						} catch (err) {
-							console.error('Failed to send initialize message:', err);
-						}
-						break;
-					case 'command':
-						try {
-							const { command, args } = message.payload;
-							const result = await this.commandService.executeCommand(command, ...(args || []));
-							const response: IResponseMessage = {
-								type: 'response',
-								requestId: message.requestId,
-								payload: { result }
-							};
-							await webviewInput.webview.postMessage(response);
-						} catch (err) {
-							const errorResponse: IResponseMessage = {
-								type: 'response',
-								requestId: message.requestId,
-								payload: { error: err.message }
-							};
-							await webviewInput.webview.postMessage(errorResponse);
-						}
-						break;
-					case 'error':
-						console.error('Webview error:', message.payload.message, message.payload.stack);
-						break;
-				}
-			});
-
-			this.logService.info('WebUIWorkbenchService: Setting HTML content');
 			await webviewInput.webview.setHtml(`<!DOCTYPE html>
 				<html>
 					<head>
 						<meta charset="UTF-8">
 						<meta http-equiv="Content-Security-Policy" content="
 							default-src 'none';
-							script-src 'unsafe-inline' 'unsafe-eval';
-							connect-src ${endpoint};
 							frame-src ${endpoint};
 							style-src 'unsafe-inline';">
-						<meta name="viewport" content="width=device-width, initial-scale=1.0">
 						<style>
 							body, html {
 								margin: 0;
@@ -118,21 +66,150 @@ export class WebUIWorkbenchService implements IWebUIService {
 								display: block;
 							}
 						</style>
+					</head>
+					<body>
+						<iframe src="${endpoint}" sandbox="allow-scripts allow-forms allow-popups allow-same-origin"></iframe>
+					</body>
+				</html>`);
+		} catch (error) {
+			this.logService.error('[WebUI] Failed to open chat:', error);
+			throw error;
+		}
+	}
+
+	async openComposer(): Promise<void> {
+		this.logService.info('[WebUI] openComposer called');
+		try {
+			const endpoint = this.configurationService.getValue<string>('webui.endpoint');
+			const apiKey = this.configurationService.getValue<string>('webui.apiKey');
+
+			if (!endpoint) {
+				this.logService.error('[WebUI] No endpoint configured. Please set webui.endpoint in settings.');
+				throw new Error('No endpoint configured. Please set webui.endpoint in settings.');
+			}
+
+			if (!apiKey) {
+				this.logService.error('[WebUI] No API key configured. Please set webui.apiKey in settings.');
+				throw new Error('No API key configured. Please set webui.apiKey in settings.');
+			}
+
+			const webviewInput = this.webviewWorkbenchService.openWebview(
+				{
+					title: 'AI Composer',
+					options: {
+						enableFindWidget: true
+					},
+					contentOptions: {
+						allowScripts: true,
+						localResourceRoots: []
+					},
+					extension: undefined
+				},
+				'composerWebview',
+				'AI Composer',
+				{ preserveFocus: false }
+			);
+
+			await webviewInput.webview.setHtml(`
+				<html>
+					<head>
+						<meta charset="UTF-8">
+						<meta http-equiv="Content-Security-Policy" content="
+							default-src 'none';
+							script-src 'unsafe-inline';
+							connect-src ${endpoint};
+							style-src 'unsafe-inline';">
+						<style>
+							body {
+								padding: 20px;
+								font-family: var(--monaco-monospace-font);
+								background: var(--vscode-editor-background);
+								color: var(--vscode-editor-foreground);
+							}
+							#models {
+								margin-bottom: 20px;
+							}
+							select {
+								width: 100%;
+								padding: 8px;
+								margin-bottom: 10px;
+								background: var(--vscode-input-background);
+								color: var(--vscode-input-foreground);
+								border: 1px solid var(--vscode-input-border);
+							}
+							#status {
+								margin-top: 10px;
+								color: var(--vscode-errorForeground);
+							}
+						</style>
 						<script>
 							const vscode = acquireVsCodeApi();
-							window.addEventListener('message', event => {
-								vscode.postMessage(event.data);
-							});
-							vscode.postMessage({ type: 'ready' });
+
+							async function fetchModels() {
+								try {
+									console.log('Fetching from:', '${endpoint}/api/models');
+									console.log('Using API key:', '${apiKey}');
+
+									const response = await fetch('${endpoint}/api/models', {
+										headers: {
+											'Authorization': 'Bearer ${apiKey}'
+										}
+									});
+									console.log('Response status:', response.status);
+
+									if (!response.ok) {
+										const errorText = await response.text();
+										console.error('Response error:', errorText);
+										throw new Error('Failed to fetch models: ' + response.status + ' ' + errorText);
+									}
+
+									const data = await response.json();
+									console.log('Full API Response:', data);
+
+									// Extract models from the data array
+									const models = data.data || [];
+									console.log('Processed models:', models);
+
+									const select = document.getElementById('modelSelect');
+									select.innerHTML = ''; // Clear loading option
+
+									if (models.length === 0) {
+										const option = document.createElement('option');
+										option.value = "";
+										option.textContent = "No models available";
+										select.appendChild(option);
+										return;
+									}
+
+									models.forEach(model => {
+										console.log('Processing model:', model);
+										const option = document.createElement('option');
+										option.value = model.id;
+										option.textContent = model.name;
+										select.appendChild(option);
+									});
+								} catch (error) {
+									console.error('Detailed fetch error:', error);
+									document.getElementById('status').textContent = 'Error loading models: ' + error.message;
+								}
+							}
+
+							window.addEventListener('load', fetchModels);
 						</script>
 					</head>
 					<body>
-						<iframe src="${endpoint}"></iframe>
+						<div id="models">
+							<h3>Available Models</h3>
+							<select id="modelSelect">
+								<option value="">Loading models...</option>
+							</select>
+						</div>
+						<div id="status"></div>
 					</body>
-				</html>`);
-			this.logService.info('WebUIWorkbenchService: HTML content set');
+				</html>
+			`);
 		} catch (error) {
-			this.logService.error('[WebUI] Failed to create webview:', error);
+			this.logService.error('[WebUI] Failed to open composer:', error);
 			throw error;
 		}
 	}

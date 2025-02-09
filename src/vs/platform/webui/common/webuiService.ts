@@ -20,5 +20,10 @@ export interface IWebUIService {
 	 * @param options WebUI options
 	 */
 	openChat(options?: WebUIOptions): Promise<void>;
+
+	/**
+	 * Opens the composer in a webview panel within VS Code
+	 */
+	openComposer(): Promise<void>;
 	// Add your service methods here
 }
