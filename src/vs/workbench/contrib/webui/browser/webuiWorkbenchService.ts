@@ -83,22 +83,14 @@ export class WebUIWorkbenchService implements IWebUIService {
 			const endpoint = this.configurationService.getValue<string>('webui.endpoint');
 			const apiKey = this.configurationService.getValue<string>('webui.apiKey');
 
-			if (!endpoint) {
-				this.logService.error('[WebUI] No endpoint configured. Please set webui.endpoint in settings.');
-				throw new Error('No endpoint configured. Please set webui.endpoint in settings.');
-			}
-
-			if (!apiKey) {
-				this.logService.error('[WebUI] No API key configured. Please set webui.apiKey in settings.');
-				throw new Error('No API key configured. Please set webui.apiKey in settings.');
+			if (!endpoint || !apiKey) {
+				throw new Error('Missing endpoint or API key configuration');
 			}
 
 			const webviewInput = this.webviewWorkbenchService.openWebview(
 				{
 					title: 'AI Composer',
-					options: {
-						enableFindWidget: true
-					},
+					options: { enableFindWidget: true },
 					contentOptions: {
 						allowScripts: true,
 						localResourceRoots: []
@@ -129,69 +121,166 @@ export class WebUIWorkbenchService implements IWebUIService {
 							#models {
 								margin-bottom: 20px;
 							}
-							select {
+							select, textarea, button {
 								width: 100%;
 								padding: 8px;
 								margin-bottom: 10px;
 								background: var(--vscode-input-background);
 								color: var(--vscode-input-foreground);
 								border: 1px solid var(--vscode-input-border);
+								border-radius: 2px;
 							}
-							#status {
-								margin-top: 10px;
-								color: var(--vscode-errorForeground);
+							button {
+								background: var(--vscode-button-background);
+								color: var(--vscode-button-foreground);
+								cursor: pointer;
+							}
+							button:hover {
+								background: var(--vscode-button-hoverBackground);
+							}
+							#chatHistory {
+								margin: 20px 0;
+								padding: 10px;
+								height: 400px;
+								overflow-y: auto;
+								border: 1px solid var(--vscode-input-border);
+								background: var(--vscode-input-background);
+							}
+							.message {
+								margin: 10px 0;
+								padding: 10px;
+								border-radius: 4px;
+							}
+							.user-message {
+								background: var(--vscode-textBlockQuote-background);
+								margin-left: 20px;
+							}
+							.bot-message {
+								background: var(--vscode-editor-inactiveSelectionBackground);
+								margin-right: 20px;
 							}
 						</style>
 						<script>
 							const vscode = acquireVsCodeApi();
+							let selectedModel = '';
+							let conversationHistory = []; // Store conversation history
 
 							async function fetchModels() {
 								try {
-									console.log('Fetching from:', '${endpoint}/api/models');
-									console.log('Using API key:', '${apiKey}');
-
 									const response = await fetch('${endpoint}/api/models', {
 										headers: {
 											'Authorization': 'Bearer ${apiKey}'
 										}
 									});
-									console.log('Response status:', response.status);
 
 									if (!response.ok) {
-										const errorText = await response.text();
-										console.error('Response error:', errorText);
-										throw new Error('Failed to fetch models: ' + response.status + ' ' + errorText);
+										throw new Error('Failed to fetch models: ' + response.status);
 									}
 
 									const data = await response.json();
-									console.log('Full API Response:', data);
-
-									// Extract models from the data array
 									const models = data.data || [];
-									console.log('Processed models:', models);
 
 									const select = document.getElementById('modelSelect');
-									select.innerHTML = ''; // Clear loading option
+									select.innerHTML = '';
 
 									if (models.length === 0) {
-										const option = document.createElement('option');
-										option.value = "";
-										option.textContent = "No models available";
-										select.appendChild(option);
+										select.innerHTML = '<option value="">No models available</option>';
 										return;
 									}
 
 									models.forEach(model => {
-										console.log('Processing model:', model);
 										const option = document.createElement('option');
 										option.value = model.id;
 										option.textContent = model.name;
 										select.appendChild(option);
 									});
+
+									selectedModel = models[0].id;
 								} catch (error) {
-									console.error('Detailed fetch error:', error);
-									document.getElementById('status').textContent = 'Error loading models: ' + error.message;
+									console.error('Error:', error);
+									document.getElementById('status').textContent = error.message;
 								}
+							}
+
+							async function sendMessage() {
+								const messageInput = document.getElementById('messageInput');
+								const message = messageInput.value.trim();
+
+								if (!message) return;
+
+								// Add user message to history and chat
+								const userMessage = { role: 'user', content: message };
+								conversationHistory.push(userMessage);
+								addMessageToChat('user', message);
+								messageInput.value = '';
+
+								try {
+									const response = await fetch('${endpoint}/api/chat/completions', {
+										method: 'POST',
+										headers: {
+											'Authorization': 'Bearer ${apiKey}',
+											'Content-Type': 'application/json'
+										},
+										body: JSON.stringify({
+											model: selectedModel,
+											messages: conversationHistory, // Send full conversation history
+											stream: true
+										})
+									});
+
+									if (!response.ok) {
+										throw new Error('Failed to send message');
+									}
+
+									// Create a new message div for the bot response
+									const chatHistory = document.getElementById('chatHistory');
+									const messageDiv = document.createElement('div');
+									messageDiv.className = 'message bot-message';
+									chatHistory.appendChild(messageDiv);
+
+									const reader = response.body.getReader();
+									const decoder = new TextDecoder();
+									let botResponse = '';
+
+									while (true) {
+										const { value, done } = await reader.read();
+										if (done) break;
+
+										const chunk = decoder.decode(value);
+										const lines = chunk.split('\\n');
+
+										for (const line of lines) {
+											if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+												try {
+													const data = JSON.parse(line.slice(6));
+													if (data.choices[0]?.delta?.content) {
+														botResponse += data.choices[0].delta.content;
+														messageDiv.textContent = botResponse;
+														chatHistory.scrollTop = chatHistory.scrollHeight;
+													}
+												} catch (e) {
+													console.error('Error parsing chunk:', e);
+												}
+											}
+										}
+									}
+
+									// Add assistant's response to conversation history
+									conversationHistory.push({ role: 'assistant', content: botResponse });
+
+								} catch (error) {
+									console.error('Error:', error);
+									document.getElementById('status').textContent = error.message;
+								}
+							}
+
+							function addMessageToChat(role, content) {
+								const chatHistory = document.getElementById('chatHistory');
+								const messageDiv = document.createElement('div');
+								messageDiv.className = 'message ' + (role === 'user' ? 'user-message' : 'bot-message');
+								messageDiv.textContent = content;
+								chatHistory.appendChild(messageDiv);
+								chatHistory.scrollTop = chatHistory.scrollHeight;
 							}
 
 							window.addEventListener('load', fetchModels);
@@ -199,10 +288,19 @@ export class WebUIWorkbenchService implements IWebUIService {
 					</head>
 					<body>
 						<div id="models">
-							<h3>Available Models</h3>
-							<select id="modelSelect">
+							<h3>Select Model</h3>
+							<select id="modelSelect" onchange="selectedModel = this.value">
 								<option value="">Loading models...</option>
 							</select>
+						</div>
+						<div id="chatHistory"></div>
+						<div id="input">
+							<textarea id="messageInput"
+								placeholder="Type your message here..."
+								rows="3"
+								onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendMessage(); }">
+							</textarea>
+							<button onclick="sendMessage()">Send</button>
 						</div>
 						<div id="status"></div>
 					</body>
