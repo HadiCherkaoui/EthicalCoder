@@ -9,7 +9,7 @@
 	padding: 6px;
 	border-radius: 6px;
 	border: 1px solid var(--vscode-inlineChat-border);
-	background: var(--vscode-inlineChat-background);
+	background: var(--vscode-editor-background);
 }
 .monaco-workbench .notebookOverlay .cell-chat-part .cell-chat-container {
 	padding: 8px 8px 0px 8px;
@@ -28,9 +28,10 @@
 .monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .body .content {
 	display: flex;
 	box-sizing: border-box;
-	outline: 1px solid var(--vscode-inlineChatInput-border);
+	outline: 1px solid var(--vscode-input-border);
 	outline-offset: -1px;
 	border-radius: 2px;
+	background-color: var(--vscode-editor-background);
 }
 
 .monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .body .content.synthetic-focus {
@@ -42,7 +43,8 @@
 	align-items: center;
 	justify-content: space-between;
 	padding: 2px 2px 2px 6px;
-	background-color: var(--vscode-inlineChatInput-background);
+	background-color: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
 	cursor: text;
 }
 
@@ -344,4 +346,10 @@
 .monaco-workbench .notebookOverlay .cell-chat-part .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque:hover,
 .monaco-workbench .notebookOverlay .cell-chat-part .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent:hover {
 	opacity: 1;
+}
+
+/* Improve code block visibility */
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat-code-block {
+	background-color: var(--vscode-textCodeBlock-background);
+	border: 1px solid var(--vscode-input-border);
 }
