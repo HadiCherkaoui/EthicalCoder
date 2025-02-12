@@ -19,64 +19,6 @@ export class WebUIWorkbenchService implements IWebUIService {
 		this.logService.info('[WebUI] Service constructed');
 	}
 
-	async openChat(): Promise<void> {
-		this.logService.info('[WebUI] openChat called');
-		const endpoint = this.configurationService.getValue<string>('webui.endpoint');
-		if (!endpoint) {
-			this.logService.error('[WebUI] No endpoint configured. Please set webui.endpoint in settings.');
-			throw new Error('No endpoint configured. Please set webui.endpoint in settings.');
-		}
-		try {
-			const webviewInput = this.webviewWorkbenchService.openWebview(
-				{
-					title: 'AI Chat',
-					options: {
-						enableFindWidget: true
-					},
-					contentOptions: {
-						allowScripts: true,
-						localResourceRoots: []
-					},
-					extension: undefined
-				},
-				'chatWebview',
-				'AI Chat',
-				{ preserveFocus: false }
-			);
-
-			await webviewInput.webview.setHtml(`<!DOCTYPE html>
-				<html>
-					<head>
-						<meta charset="UTF-8">
-						<meta http-equiv="Content-Security-Policy" content="
-							default-src 'none';
-							frame-src ${endpoint};
-							style-src 'unsafe-inline';">
-						<style>
-							body, html {
-								margin: 0;
-								padding: 0;
-								height: 100vh;
-								overflow: hidden;
-							}
-							iframe {
-								width: 100%;
-								height: 100vh;
-								border: none;
-								display: block;
-							}
-						</style>
-					</head>
-					<body>
-						<iframe src="${endpoint}" sandbox="allow-scripts allow-forms allow-popups allow-same-origin"></iframe>
-					</body>
-				</html>`);
-		} catch (error) {
-			this.logService.error('[WebUI] Failed to open chat:', error);
-			throw error;
-		}
-	}
-
 	async openComposer(): Promise<void> {
 		this.logService.info('[WebUI] openComposer called');
 		try {

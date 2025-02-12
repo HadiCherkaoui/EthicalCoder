@@ -14,13 +14,6 @@ export const IWebUIService = createDecorator<IWebUIService>('webUIService');
 
 export interface IWebUIService {
 	readonly _serviceBrand: undefined;
-
-	/**
-	 * Opens the chat in a webview panel within VS Code
-	 * @param options WebUI options
-	 */
-	openChat(options?: WebUIOptions): Promise<void>;
-
 	/**
 	 * Opens the composer in a webview panel within VS Code
 	 */

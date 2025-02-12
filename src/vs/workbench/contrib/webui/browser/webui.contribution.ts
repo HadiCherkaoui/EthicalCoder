@@ -20,29 +20,6 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry, Configur
 // Register service with exact decorator name and eager instantiation
 registerSingleton(IWebUIService, WebUIWorkbenchService, InstantiationType.Eager);
 
-class OpenWebUIAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.webui.open',
-			title: {
-				value: localize('openAIChat', "Open AI Chat"),
-				original: 'Open AI Chat'
-			},
-			category: 'Developer',
-			f1: true,
-			keybinding: {
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyK,
-				weight: KeybindingWeight.WorkbenchContrib
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const webUIService = accessor.get(IWebUIService);
-		await webUIService.openChat();
-	}
-}
-
 class OpenWebUIComposerAction extends Action2 {
 	constructor() {
 		super({
@@ -66,7 +43,6 @@ class OpenWebUIComposerAction extends Action2 {
 	}
 }
 
-registerAction2(OpenWebUIAction);
 registerAction2(OpenWebUIComposerAction);
 
 // Register as workbench contribution
