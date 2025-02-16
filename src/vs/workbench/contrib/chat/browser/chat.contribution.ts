@@ -73,7 +73,7 @@ import { ChatInputBoxContentProvider } from './chatEdinputInputContentProvider.j
 import { ChatEditingEditorAccessibility } from './chatEditing/chatEditingEditorAccessibility.js';
 import { registerChatEditorActions } from './chatEditing/chatEditingEditorActions.js';
 import { ChatEditorController } from './chatEditing/chatEditingEditorController.js';
-import { ChatEditorOverlayController } from './chatEditing/chatEditingEditorOverlay.js';
+import { ChatEditingEditorOverlay } from './chatEditing/chatEditingEditorOverlay.js';
 import { ChatEditingService } from './chatEditing/chatEditingServiceImpl.js';
 import { ChatEditor, IChatEditorOptions } from './chatEditor.js';
 import { ChatEditorInput, ChatEditorInputSerializer } from './chatEditorInput.js';
@@ -94,6 +94,7 @@ import './contrib/chatInputEditorHover.js';
 import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesContrib.js';
 import { LanguageModelToolsService } from './languageModelToolsService.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
+import { ChatEditingEditorContextKeys } from './chatEditing/chatEditingEditorContextKeys.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -168,9 +169,9 @@ configurationRegistry.registerConfiguration({
 			title: PromptFilesConfig.CONFIG_TITLE,
 			markdownDescription: PromptFilesConfig.CONFIG_DESCRIPTION,
 			default: {
-				[PromptFilesConfig.DEFAULT_LOCATION]: false,
+				[PromptFilesConfig.DEFAULT_SOURCE_FOLDER]: false,
 			},
-			required: [PromptFilesConfig.DEFAULT_LOCATION],
+			required: [PromptFilesConfig.DEFAULT_SOURCE_FOLDER],
 			additionalProperties: { type: 'boolean' },
 			unevaluatedProperties: { type: 'boolean' },
 			restricted: true,
@@ -178,10 +179,10 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			examples: [
 				{
-					[PromptFilesConfig.DEFAULT_LOCATION]: true,
+					[PromptFilesConfig.DEFAULT_SOURCE_FOLDER]: true,
 				},
 				{
-					[PromptFilesConfig.DEFAULT_LOCATION]: true,
+					[PromptFilesConfig.DEFAULT_SOURCE_FOLDER]: true,
 					'/Users/vscode/repos/prompts': true,
 				},
 			],
@@ -412,6 +413,8 @@ registerWorkbenchContribution2(ChatQuotasStatusBarEntry.ID, ChatQuotasStatusBarE
 registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatAgentSettingContribution.ID, ChatAgentSettingContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatEditingEditorAccessibility.ID, ChatEditingEditorAccessibility, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatEditingEditorOverlay.ID, ChatEditingEditorOverlay, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatEditingEditorContextKeys.ID, ChatEditingEditorContextKeys, WorkbenchPhase.AfterRestored);
 
 registerChatActions();
 registerChatCopyActions();
@@ -429,7 +432,6 @@ registerChatDeveloperActions();
 registerChatEditorActions();
 
 registerEditorFeature(ChatPasteProvidersFeature);
-registerEditorContribution(ChatEditorOverlayController.ID, ChatEditorOverlayController, EditorContributionInstantiation.Lazy);
 registerEditorContribution(ChatEditorController.ID, ChatEditorController, EditorContributionInstantiation.Eventually);
 
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
