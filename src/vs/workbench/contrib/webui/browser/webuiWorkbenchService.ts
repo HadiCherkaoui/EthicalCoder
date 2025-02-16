@@ -7,16 +7,48 @@ import { IWebUIService } from '../../../../platform/webui/common/webuiService.js
 import { IWebviewWorkbenchService } from '../../webviewPanel/browser/webviewWorkbenchService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { URI } from '../../../../base/common/uri.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+
+interface ChatMessage {
+	type: string;
+	content: { role: string; content: string };
+}
 
 export class WebUIWorkbenchService implements IWebUIService {
 	readonly _serviceBrand: undefined;
+	private chatHistoryFile: URI;
+	private chatHistory: any[] = [];
 
 	constructor(
 		@IWebviewWorkbenchService private readonly webviewWorkbenchService: IWebviewWorkbenchService,
 		@ILogService private readonly logService: ILogService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		this.logService.info('[WebUI] Service constructed');
+		const storagePath = this.configurationService.getValue<string>('appDataPath');
+		this.chatHistoryFile = URI.file(storagePath + '/chatHistories.json');
+		this.loadHistory();
+	}
+
+	private async loadHistory() {
+		try {
+			const content = await this.fileService.readFile(this.chatHistoryFile);
+			this.chatHistory = JSON.parse(content.value.toString());
+		} catch {
+			this.chatHistory = [];
+		}
+	}
+
+	private async saveHistory() {
+		try {
+			await this.fileService.writeFile(this.chatHistoryFile,
+				VSBuffer.fromString(JSON.stringify(this.chatHistory)));
+		} catch (e) {
+			this.logService.error('[WebUI] Failed to save chat history:', e);
+		}
 	}
 
 	async openComposer(): Promise<void> {
@@ -43,6 +75,18 @@ export class WebUIWorkbenchService implements IWebUIService {
 				'AI Composer',
 				{ preserveFocus: false }
 			);
+
+			// Load initial history
+			const initialHistory = this.chatHistory;
+
+			// Set up message handler BEFORE setting HTML
+			webviewInput.webview.onMessage((message: any) => {
+				const chatMessage = message as ChatMessage;
+				if (chatMessage.type === 'chatMessage') {
+					this.chatHistory.push(chatMessage.content);
+					this.saveHistory();
+				}
+			});
 
 			await webviewInput.webview.setHtml(`
 			<html>
@@ -184,64 +228,69 @@ export class WebUIWorkbenchService implements IWebUIService {
 		<script>
 			const vscode = acquireVsCodeApi();
 			let selectedModel = '';
-			let conversationHistory = [];
+			let conversationHistory = ${JSON.stringify(initialHistory)};
 
-			// Initialize event listeners
 			window.addEventListener('load', () => {
 				fetchModels();
+				displaySavedHistory();
 
-				// Message input handler
 				document.getElementById('messageInput').addEventListener('keydown', e => {
-		if (e.key === 'Enter' && !e.shiftKey) {
-			e.preventDefault();
-			sendMessage();
-		}
+					if (e.key === 'Enter' && !e.shiftKey) {
+						e.preventDefault();
+						sendMessage();
+					}
 				});
 
-				// Model selection handler
 				document.getElementById('modelSelect').addEventListener('change', function() {
-		selectedModel = this.value;
-		console.log('Selected model updated to:', selectedModel);
+					selectedModel = this.value;
+					console.log('Selected model updated to:', selectedModel);
 				});
 			});
 
+			function displaySavedHistory() {
+				const chatHistory = document.getElementById('chatHistory');
+				conversationHistory.forEach(msg => {
+					addMessageToChat(msg.role, msg.content);
+				});
+			}
+
 			async function fetchModels() {
 				try {
-		const response = await fetch('${endpoint}/api/models', {
-			headers: { 'Authorization': 'Bearer ${apiKey}' }
-		});
+					const response = await fetch('${endpoint}/api/models', {
+						headers: { 'Authorization': 'Bearer ${apiKey}' }
+					});
 
-		if (!response.ok) throw new Error('Failed to fetch models: ' + response.status);
+					if (!response.ok) throw new Error('Failed to fetch models: ' + response.status);
 
-		const data = await response.json();
-		const select = document.getElementById('modelSelect');
-		select.innerHTML = data.data.map(model =>
-			\`<option value="\${model.id}">\${model.name}</option>\`
-		).join('');
+					const data = await response.json();
+					const select = document.getElementById('modelSelect');
+					select.innerHTML = data.data.map(model =>
+						\`<option value="\${model.id}">\${model.name}</option>\`
+					).join('');
 
-		// Set initial value and trigger change
-		selectedModel = data.data[0]?.id || '';
-		select.value = selectedModel;
-		select.dispatchEvent(new Event('change'));
+					// Set initial value and trigger change
+					selectedModel = data.data[0]?.id || '';
+					select.value = selectedModel;
+					select.dispatchEvent(new Event('change'));
 				} catch (error) {
-		console.error('Error:', error);
-		addMessageToChat('assistant', 'Error loading models: ' + error.message);
+					console.error('Error:', error);
+					addMessageToChat('assistant', 'Error loading models: ' + error.message);
 				}
 			}
 
 			marked.setOptions({
 				highlight: function(code, language) {
-		const validLang = language && hljs.getLanguage(language) ? language : 'plaintext';
-		const highlighted = hljs.highlight(code, { language: validLang }).value;
-		return \`
-			<div class="code-block">
-				<div class="code-header">
-		<span>\${validLang}</span>
-		<button onclick="copyCode(this)">Copy</button>
-				</div>
-				<pre><code class="hljs language-\${validLang}">\${highlighted}</code></pre>
-			</div>
-		\`;
+					const validLang = language && hljs.getLanguage(language) ? language : 'plaintext';
+					const highlighted = hljs.highlight(code, { language: validLang }).value;
+					return \`
+						<div class="code-block">
+							<div class="code-header">
+								<span>\${validLang}</span>
+								<button onclick="copyCode(this)">Copy</button>
+							</div>
+							<pre><code class="hljs language-\${validLang}">\${highlighted}</code></pre>
+						</div>
+					\`;
 				}
 			});
 
@@ -255,13 +304,15 @@ export class WebUIWorkbenchService implements IWebUIService {
 			function addMessageToChat(role, content) {
 				const chatHistory = document.getElementById('chatHistory');
 				const messageDiv = document.createElement('div');
-				messageDiv.className = \`message \${role === 'user' ? 'user-message' : 'bot-message markdown-body'}\`;
+				messageDiv.className = 'message ' + (role === 'user' ? 'user-message' : 'bot-message');
 
 				if (role === 'assistant') {
-		messageDiv.innerHTML = marked.parse(content);
-		messageDiv.querySelectorAll('pre code').forEach(hljs.highlightBlock);
+					messageDiv.innerHTML = marked.parse(content);
+					messageDiv.querySelectorAll('pre code').forEach(block => {
+						hljs.highlightElement(block);
+					});
 				} else {
-		messageDiv.textContent = content;
+					messageDiv.textContent = content;
 				}
 
 				chatHistory.appendChild(messageDiv);
@@ -278,57 +329,64 @@ export class WebUIWorkbenchService implements IWebUIService {
 				messageInput.value = '';
 
 				try {
-		const response = await fetch('${endpoint}/api/chat/completions', {
-			method: 'POST',
-			headers: {
-				'Authorization': 'Bearer ${apiKey}',
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({
-				model: selectedModel,
-				messages: [...conversationHistory, { role: 'user', content: message }],
-				stream: true
-			})
-		});
+					// Save to history
+					const messageData = { role: 'user', content: message };
+					conversationHistory.push(messageData);
+					vscode.postMessage({ type: 'chatMessage', content: messageData });
 
-		if (!response.ok) throw new Error('Failed to send message');
+					const response = await fetch('${endpoint}/api/chat/completions', {
+						method: 'POST',
+						headers: {
+							'Authorization': 'Bearer ${apiKey}',
+							'Content-Type': 'application/json'
+						},
+						body: JSON.stringify({
+							model: selectedModel,
+							messages: [...conversationHistory, { role: 'user', content: message }],
+							stream: true
+						})
+					});
 
-		const reader = response.body.getReader();
-		const decoder = new TextDecoder();
-		let botResponse = '';
-		const messageDiv = addMessageToChat('assistant', '');
+					if (!response.ok) throw new Error('Failed to send message');
 
-		while (true) {
-			const { value, done } = await reader.read();
-			if (done) break;
+					const reader = response.body.getReader();
+					const decoder = new TextDecoder();
+					let botResponse = '';
+					const messageDiv = addMessageToChat('assistant', '');
 
-			const chunk = decoder.decode(value);
-			const lines = chunk.split('\\n');
+					while (true) {
+						const { value, done } = await reader.read();
+						if (done) break;
 
-			for (const line of lines) {
-				if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-		try {
-			const data = JSON.parse(line.slice(6));
-			if (data.choices[0]?.delta?.content) {
-				botResponse += data.choices[0].delta.content;
-				messageDiv.innerHTML = marked.parse(botResponse);
-				messageDiv.querySelectorAll('pre code').forEach(hljs.highlightBlock);
-				chatHistory.scrollTop = chatHistory.scrollHeight;
-			}
-		} catch (e) {
-			console.error('Error parsing chunk:', e);
-		}
-				}
-			}
-		}
+						const chunk = decoder.decode(value);
+						const lines = chunk.split('\\n');
 
-		conversationHistory.push(
-			{ role: 'user', content: message },
-			{ role: 'assistant', content: botResponse }
-		);
+						for (const line of lines) {
+							if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+								try {
+									const data = JSON.parse(line.slice(6));
+									if (data.choices[0]?.delta?.content) {
+										botResponse += data.choices[0].delta.content;
+										messageDiv.innerHTML = marked.parse(botResponse);
+										messageDiv.querySelectorAll('pre code').forEach(block => {
+											hljs.highlightElement(block);
+										});
+										chatHistory.scrollTop = chatHistory.scrollHeight;
+									}
+								} catch (e) {
+									console.error('Error parsing chunk:', e);
+								}
+							}
+						}
+					}
+
+					conversationHistory.push(
+						{ role: 'user', content: message },
+						{ role: 'assistant', content: botResponse }
+					);
 				} catch (error) {
-		console.error('Error:', error);
-		addMessageToChat('assistant', 'Error: ' + error.message);
+					console.error('Error:', error);
+					addMessageToChat('assistant', 'Error: ' + error.message);
 				}
 			}
 		</script>

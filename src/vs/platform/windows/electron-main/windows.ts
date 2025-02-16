@@ -148,13 +148,10 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 			spellcheck: false,
 			zoomFactor: zoomLevelToZoomFactor(windowState.zoomLevel ?? windowSettings?.zoomLevel),
 			autoplayPolicy: 'user-gesture-required',
-			// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
-			// Refs https://github.com/microsoft/vscode/issues/140098
 			enableBlinkFeatures: 'HighlightAPI',
 			sandbox: true,
-			// TODO(deepak1556): Should be removed once migration is complete
-			// https://github.com/microsoft/vscode/issues/239228
-			enableDeprecatedPaste: true,
+			preload: join(environmentMainService.appRoot, 'out/vs/base/parts/sandbox/electron-sandbox/preload.js'),
+			nodeIntegration: true,
 		},
 		experimentalDarkMode: true
 	};
