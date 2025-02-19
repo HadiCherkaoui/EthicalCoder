@@ -9,6 +9,7 @@ import { INotebookService } from '../../../common/notebookService.js';
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ChatEditingModifiedDocumentEntry } from '../../../../chat/browser/chatEditing/chatEditingModifiedDocumentEntry.js';
 
 
 export const INotebookOriginalModelReferenceFactory = createDecorator<INotebookOriginalModelReferenceFactory>('INotebookOriginalModelReferenceFactory');
@@ -32,7 +33,8 @@ export class OriginalNotebookModelReferenceCollection extends ReferenceCollectio
 		if (model) {
 			return model;
 		}
-		const bytes = VSBuffer.fromString(fileEntry.originalModel.getValue());
+		// TODO@DonJayamanne FIX ME, don't use `originalModel`
+		const bytes = VSBuffer.fromString((fileEntry as ChatEditingModifiedDocumentEntry).originalModel.getValue());
 		const stream = bufferToStream(bytes);
 
 		return this.notebookService.createNotebookTextModel(viewType, uri, stream);
@@ -87,4 +89,3 @@ export class NotebookOriginalModelReferenceFactory implements INotebookOriginalM
 		return this.asyncModelCollection.acquire(fileEntry.originalURI.toString(), fileEntry, viewType);
 	}
 }
-
