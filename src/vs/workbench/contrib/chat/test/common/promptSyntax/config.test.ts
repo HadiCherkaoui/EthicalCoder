@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mockService } from './testUtils/mock.js';
 import { randomInt } from '../../../../../../base/common/numbers.js';
 import { PromptFilesConfig } from '../../../common/promptSyntax/config.js';
 import { randomBoolean } from '../../../../../../base/test/common/testUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationOverrides, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { mockService } from '../../../../../../platform/prompts/test/common/utils/mock.js';
 
 /**
  * Mocked instance of {@link IConfigurationService}.

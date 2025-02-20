@@ -393,3 +393,5 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		this._iconManager.setIcons(id, iconPath);
 	}
 }
+
+export { WebviewInput };

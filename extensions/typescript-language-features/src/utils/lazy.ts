@@ -45,7 +45,6 @@ export class Lazy<T> {
 	 */
 	get rawValue(): T | undefined { return this._value; }
 }
-
 export function lazy<T>(getValue: () => T): Lazy<T> {
-	return new LazyValue<T>(getValue);
+	return new Lazy<T>(getValue);
 }
