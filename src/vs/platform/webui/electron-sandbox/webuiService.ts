@@ -13,4 +13,9 @@ export class WebUIDesktopService implements IWebUIService {
 	async openChat(options?: WebUIOptions): Promise<void> {
 		// Delegate to workbench service
 	}
+
+	async openComposer(): Promise<void> {
+		// Desktop implementation
+		return;
+	}
 }

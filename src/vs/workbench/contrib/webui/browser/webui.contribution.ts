@@ -10,7 +10,6 @@ import { localize } from '../../../../nls.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { WebUIWorkbenchService } from './webuiWorkbenchService.js';
 import { registerWorkbenchContribution2, IWorkbenchContribution } from '../../../common/contributions.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { WebUIEditorInput } from './webuiEditorInput.js';
@@ -21,39 +20,30 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry, Configur
 // Register service with exact decorator name and eager instantiation
 registerSingleton(IWebUIService, WebUIWorkbenchService, InstantiationType.Eager);
 
-class OpenWebUIAction extends Action2 {
+class OpenWebUIComposerAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.webui.open',
+			id: 'workbench.action.webui.openComposer',
 			title: {
-				value: localize('openAIChat', "Open AI Chat"),
-				original: 'Open AI Chat'
+				value: localize('openAIComposer', "Open AI Composer"),
+				original: 'Open AI Composer'
 			},
 			category: 'Developer',
 			f1: true,
 			keybinding: {
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyK,
-				weight: KeybindingWeight.WorkbenchContrib,
-				when: undefined
+				primary: KeyMod.CtrlCmd | KeyCode.KeyI,
+				weight: KeybindingWeight.WorkbenchContrib
 			}
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const logService = accessor.get(ILogService);
 		const webUIService = accessor.get(IWebUIService);
-
-		logService.info('[WebUI] Action triggered');
-		try {
-			await webUIService.openChat();
-			logService.info('[WebUI] Chat opened successfully');
-		} catch (error) {
-			logService.error('[WebUI] Failed to open chat:', error);
-		}
+		await webUIService.openComposer();
 	}
 }
 
-registerAction2(OpenWebUIAction);
+registerAction2(OpenWebUIComposerAction);
 
 // Register as workbench contribution
 class WebUIContribution implements IWorkbenchContribution {
@@ -84,6 +74,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'string',
 				default: 'http://localhost:3000',
 				description: 'Endpoint URL for the Open WebUI interface',
+				scope: ConfigurationScope.APPLICATION
+			},
+			'webui.apiKey': {
+				type: 'string',
+				default: '',
+				description: 'API key for authenticating with Open WebUI. Can be found in Settings > Account.',
 				scope: ConfigurationScope.APPLICATION
 			}
 		}

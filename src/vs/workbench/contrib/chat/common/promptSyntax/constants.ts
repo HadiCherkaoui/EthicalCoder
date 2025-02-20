@@ -3,7 +3,13 @@
  *  Licensed under the MIT License. See LICENSE.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PROMPT_FILE_EXTENSION } from '../../../../../platform/prompts/common/constants.js';
+export const PROMPT_FILE_EXTENSION = '.prompt';
+
+export const Constants = {
+	PROMPT_FILE_EXTENSION
+};
+
+export default Constants;
 
 /**
  * Documentation link for the reusable prompts feature.

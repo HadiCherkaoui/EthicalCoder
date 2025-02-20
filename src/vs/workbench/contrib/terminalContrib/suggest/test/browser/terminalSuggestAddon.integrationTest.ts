@@ -92,29 +92,31 @@ suite('Terminal Contrib Suggest Recordings', () => {
 	let pwshCompletionProvider: PwshCompletionProviderAddon;
 
 	setup(async () => {
-		const terminalConfig = {
-			integrated: {
-				suggest: {
-					enabled: true,
-					quickSuggestions: true,
-					suggestOnTriggerCharacters: true,
-					runOnEnter: 'never',
-					providers: {
-						'terminal-suggest': true,
-						'pwsh-shell-integration': true,
-					},
-				} satisfies ITerminalSuggestConfiguration
-			}
+		const config: ITerminalSuggestConfiguration = {
+			enabled: true,
+			quickSuggestions: true,
+			suggestOnTriggerCharacters: true,
+			runOnEnter: 'never',
+			providers: {
+				'terminal-suggest': true,
+				'pwsh-shell-integration': true
+			},
+			windowsExecutableExtensions: { '.exe': true, '.cmd': true, '.bat': true },
+			showStatusBar: true,
+			cdPath: 'relative',
+			inlineSuggestion: 'alwaysOnTop'
 		};
 		const instantiationService = workbenchInstantiationService({
 			configurationService: () => new TestConfigurationService({
 				files: { autoSave: false },
-				terminal: terminalConfig,
+				terminal: {
+					suggest: config
+				},
 				editor: { fontSize: 14, fontFamily: 'Arial', lineHeight: 12, fontWeight: 'bold' }
 			})
 		}, store);
 		const terminalConfigurationService = instantiationService.get(ITerminalConfigurationService) as TestTerminalConfigurationService;
-		terminalConfigurationService.setConfig(terminalConfig as any);
+		terminalConfigurationService.setConfig(config as any);
 		const completionService = instantiationService.createInstance(TerminalCompletionService);
 		instantiationService.stub(ITerminalCompletionService, store.add(completionService));
 		const shellIntegrationAddon = store.add(new ShellIntegrationAddon('', true, undefined, new NullLogService));
