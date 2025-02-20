@@ -73,8 +73,13 @@ export class WebUIWorkbenchService implements IWebUIService {
 	}
 
 	private async initializeSessions(): Promise<void> {
-		await this.ensureSessionsDirectoryExists();
-		await this.loadHistory();
+		try {
+			await this.ensureSessionsDirectoryExists();
+			await this.loadHistory();
+		} catch (e) {
+			this.logService.error('[WebUI] Failed to initialize sessions:', e);
+			throw e;
+		}
 	}
 
 	private async ensureSessionsDirectoryExists(): Promise<void> {
@@ -95,7 +100,10 @@ export class WebUIWorkbenchService implements IWebUIService {
 	private async loadHistory(): Promise<void> {
 		try {
 			this.logService.info('[WebUI] Loading history from:', this.sessionsIndexFile.fsPath);
-			await this.ensureSessionsDirectoryExists();
+
+			// Always start fresh
+			this.chatSessions = [];
+			this.currentSessionId = '';
 
 			const exists = await this.fileService.exists(this.sessionsIndexFile);
 			if (!exists) {
@@ -104,32 +112,43 @@ export class WebUIWorkbenchService implements IWebUIService {
 				return;
 			}
 
+			// Load index file
 			const indexContent = await this.fileService.readFile(this.sessionsIndexFile);
 			const indexData: SessionIndex = JSON.parse(indexContent.value.toString());
-			this.logService.info('[WebUI] Loaded sessions index:', indexData);
+			this.currentSessionId = indexData.currentSessionId || '';
 
-			// Clear existing sessions before loading
-			this.chatSessions = [];
-
-			// Load sessions in order
+			// Load each session from file
 			for (const summary of indexData.sessions) {
-				const session: ChatSession = { id: summary.id, title: summary.title, messages: [] };
-				await this.loadSession(session);
-				this.chatSessions.push(session);
+				try {
+					const sessionPath = URI.file(join(this.sessionsDirectoryUri.fsPath, `${summary.id}.json`));
+					const sessionContent = await this.fileService.readFile(sessionPath);
+					const session: ChatSession = JSON.parse(sessionContent.value.toString());
+
+					// Only add if not already in array (extra safety check)
+					if (!this.chatSessions.some(s => s.id === session.id)) {
+						this.chatSessions.push(session);
+						this.logService.info('[WebUI] Loaded session:', session.id, 'with', session.messages.length, 'messages');
+					}
+				} catch (e) {
+					this.logService.error('[WebUI] Failed to load session:', summary.id, e);
+				}
 			}
 
-			// Set current session to chat-1 if it exists, otherwise create it
-			const chat1 = this.chatSessions.find(s => s.id === 'chat-1');
-			if (chat1) {
-				this.currentSessionId = chat1.id;
-			} else {
-				await this.createDefaultSession();
+			// Sort sessions by ID
+			this.chatSessions.sort((a, b) => {
+				const aNum = parseInt(a.id.split('-')[1]);
+				const bNum = parseInt(b.id.split('-')[1]);
+				return aNum - bNum;
+			});
+
+			// Set current session if none is set
+			if (!this.currentSessionId && this.chatSessions.length > 0) {
+				this.currentSessionId = this.chatSessions[0].id;
 			}
+
 		} catch (e) {
-			this.logService.error('[WebUI] Failed to load history:', e);
-			if (this.chatSessions.length === 0) {
-				await this.createDefaultSession();
-			}
+			this.logService.error('[WebUI] Error loading history:', e);
+			await this.createDefaultSession();
 		}
 	}
 
@@ -150,22 +169,6 @@ export class WebUIWorkbenchService implements IWebUIService {
 			this.logService.info('[WebUI] Created new session:', defaultSession.id);
 		} catch (e) {
 			this.logService.error('[WebUI] Failed to save default session', e);
-		}
-	}
-
-	private async loadSession(session: ChatSession): Promise<void> {
-		try {
-			const chatNumber = session.id.split('-')[1];
-			const sessionFile = URI.file(join(this.sessionsDirectoryUri.fsPath, `chat-${chatNumber}.json`));
-
-			this.logService.info('[WebUI] Loading session from:', sessionFile.fsPath);
-			const content = await this.fileService.readFile(sessionFile);
-			const sessionData = JSON.parse(content.value.toString());
-			session.messages = sessionData.messages || [];
-			this.logService.info('[WebUI] Loaded session with', session.messages.length, 'messages');
-		} catch (e) {
-			this.logService.error('[WebUI] Failed to load session', session.id, e);
-			session.messages = [];
 		}
 	}
 
@@ -325,10 +328,10 @@ export class WebUIWorkbenchService implements IWebUIService {
 				{ preserveFocus: false }
 			);
 
-			this.registerWebviewMessageListener(webviewInput);
-
-			// Store webview reference
 			this.webviewInput = webviewInput;
+
+			// Ensure we have the current session
+			const currentSession = this.chatSessions.find(s => s.id === this.currentSessionId);
 
 			await webviewInput.webview.setHtml(`
 				<html>
@@ -491,9 +494,12 @@ export class WebUIWorkbenchService implements IWebUIService {
 	</style>
 	<script>
 						const vscode = acquireVsCodeApi();
-						let sessions = ${JSON.stringify(this.chatSessions)};
+						let sessions = ${JSON.stringify(this.chatSessions.map(s => ({
+				id: s.id,
+				title: s.title
+			})))};
 						let currentSessionId = '${this.currentSessionId}';
-						let currentSession = sessions.find(s => s.id === currentSessionId);
+						let currentSession = ${JSON.stringify(currentSession)};
 
 						function renderSessionsPanel() {
 						const panel = document.getElementById('sessionsPanel');
@@ -746,6 +752,8 @@ export class WebUIWorkbenchService implements IWebUIService {
 						</body>
 				</html>
 	`);
+
+			this.registerWebviewMessageListener(webviewInput);
 		} catch (error) {
 			this.logService.error('[WebUI] Failed to open composer:', error);
 			throw error;
