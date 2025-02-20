@@ -89,7 +89,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.window.registerTerminalCompletionProvider({
 		id: 'terminal-suggest',
-		async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: { commandLine: string; cursorPosition: number }, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | vscode.TerminalCompletionList | undefined> {
+		async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: vscode.TerminalCompletionContext, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | vscode.TerminalCompletionList | undefined> {
 			if (token.isCancellationRequested) {
 				return;
 			}
@@ -104,7 +104,8 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (!commandsInPath?.completionResources) {
 				return;
 			}
-			const commands = [...commandsInPath.completionResources, ...shellGlobals];
+			// Order is important here, add shell globals first so they are prioritized over path commands
+			const commands = [...shellGlobals, ...commandsInPath.completionResources];
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 			const pathSeparator = isWindows ? '\\' : '/';
 			const tokenType = getTokenType(terminalContext, shellType);
@@ -198,7 +199,7 @@ export function asArray<T>(x: T | T[]): T[] {
 
 export async function getCompletionItemsFromSpecs(
 	specs: Fig.Spec[],
-	terminalContext: { commandLine: string; cursorPosition: number },
+	terminalContext: vscode.TerminalCompletionContext,
 	availableCommands: ICompletionResource[],
 	prefix: string,
 	tokenType: TokenType,
@@ -234,23 +235,38 @@ export async function getCompletionItemsFromSpecs(
 
 	if (tokenType === TokenType.Command) {
 		// Include builitin/available commands in the results
-		const labels = new Set(items.map((i) => i.label));
+		const labels = new Set(items.map((i) => typeof i.label === 'string' ? i.label : i.label.label));
 		for (const command of availableCommands) {
-			if (!labels.has(command.label)) {
+			const commandTextLabel = typeof command.label === 'string' ? command.label : command.label.label;
+			if (!labels.has(commandTextLabel)) {
 				items.push(createCompletionItem(
 					terminalContext.cursorPosition,
 					prefix,
 					command,
-					command.detail
+					command.detail,
+					command.documentation
 				));
+				labels.add(commandTextLabel);
+			} else {
+				const existingItem = items.find(i => (typeof i.label === 'string' ? i.label : i.label.label) === commandTextLabel);
+				if (!existingItem) {
+					continue;
+				}
+				const preferredItem = compareItems(existingItem, command);
+				if (preferredItem) {
+					items.splice(items.indexOf(existingItem), 1, preferredItem);
+				}
 			}
 		}
 		filesRequested = true;
 		foldersRequested = true;
-	} else if (!items.length && !filesRequested && !foldersRequested && !hasCurrentArg) {
-		// Not a command and no specific args or options were provided, so show resources
-		filesRequested = true;
-		foldersRequested = true;
+	}
+	// For arguments when no fig suggestions are found these are fallback suggestions
+	else if (!items.length && !filesRequested && !foldersRequested && !hasCurrentArg) {
+		if (terminalContext.allowFallbackCompletions) {
+			filesRequested = true;
+			foldersRequested = true;
+		}
 	}
 
 	let cwd: vscode.Uri | undefined;
@@ -259,6 +275,20 @@ export async function getCompletionItemsFromSpecs(
 	}
 
 	return { items, filesRequested, foldersRequested, cwd };
+}
+
+function compareItems(existingItem: vscode.TerminalCompletionItem, command: ICompletionResource): vscode.TerminalCompletionItem | undefined {
+	let score = typeof command.label === 'object' ? (command.label.detail !== undefined ? 1 : 0) : 0;
+	score += typeof command.label === 'object' ? (command.label.description !== undefined ? 2 : 0) : 0;
+	score += command.documentation ? typeof command.documentation === 'string' ? 2 : 3 : 0;
+	if (score > 0) {
+		score -= typeof existingItem.label === 'object' ? (existingItem.label.detail !== undefined ? 1 : 0) : 0;
+		score -= typeof existingItem.label === 'object' ? (existingItem.label.description !== undefined ? 2 : 0) : 0;
+		score -= existingItem.documentation ? typeof existingItem.documentation === 'string' ? 2 : 3 : 0;
+		if (score >= 0) {
+			return { ...command, replacementIndex: existingItem.replacementIndex, replacementLength: existingItem.replacementLength };
+		}
+	}
 }
 
 function getShell(shellType: TerminalShellType): string | undefined {

@@ -172,6 +172,22 @@ suite('PromptInputModel', () => {
 			await writePromise('\x1b[2D');
 			await assertPromptInput('f|oo[ bar]');
 		});
+		test('trailing whitespace', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+			await writePromise('foo    ');
+			await writePromise('\x1b[4D');
+			await assertPromptInput('foo|    ');
+		});
+		test('basic ghost text one word', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('pw\x1b[2md\x1b[1D');
+			await assertPromptInput('pw|[d]');
+		});
 		test('ghost text with cursor navigation', async () => {
 			await writePromise('$ ');
 			fireCommandStart();
