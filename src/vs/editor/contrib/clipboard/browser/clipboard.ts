@@ -116,7 +116,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, { submenu: MenuId.ExplorerCo
 
 export const PasteAction = supportsPaste ? registerCommand(new MultiCommand({
 	id: 'editor.action.clipboardPasteAction',
-	precondition: undefined,
+	precondition: EditorContextKeys.editorTextFocus,
 	kbOpts: (
 		// Do not bind paste keybindings in the browser,
 		// since browsers do that for us and it avoids security prompts
