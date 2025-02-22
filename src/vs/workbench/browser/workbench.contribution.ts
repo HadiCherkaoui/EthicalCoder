@@ -657,10 +657,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				'description': localize('tips.enabled', "When enabled, will show the watermark tips when no editor is open.")
 			},
-			'workbench.webui.enabled': {
+			'workbench.Composer.enabled': {
 				'type': 'boolean',
 				'default': true,
-				'description': localize('webuiEnabled', "Controls whether the WebUI features are enabled"),
+				'description': localize('ComposerEnabled', "Controls whether the Composer features are enabled"),
 				'scope': ConfigurationScope.APPLICATION
 			},
 		}

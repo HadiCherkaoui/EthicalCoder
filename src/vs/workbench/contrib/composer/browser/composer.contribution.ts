@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { IWebUIService } from '../../../../platform/webui/common/webuiService.js';
+import { IComposerService } from '../../../../platform/composer/common/composerService.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { localize } from '../../../../nls.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
-import { WebUIWorkbenchService } from './webuiWorkbenchService.js';
 import { registerWorkbenchContribution2, IWorkbenchContribution } from '../../../common/contributions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
-import { WebUIEditorInput } from './webuiEditorInput.js';
+import { ComposerEditorInput } from './composerEditorInput.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ComposerWorkbenchService } from './composerWorkbenchService.js';
 
 // Register service with exact decorator name and eager instantiation
-registerSingleton(IWebUIService, WebUIWorkbenchService, InstantiationType.Eager);
+registerSingleton(IComposerService, ComposerWorkbenchService, InstantiationType.Eager);
 
-class OpenWebUIComposerAction extends Action2 {
+class OpenComposerComposerAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.webui.openComposer',
+			id: 'workbench.action.composer.openComposer',
 			title: {
 				value: localize('openAIComposer', "Open AI Composer"),
 				original: 'Open AI Composer'
@@ -38,35 +38,35 @@ class OpenWebUIComposerAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const webUIService = accessor.get(IWebUIService);
-		await webUIService.openComposer();
+		const ComposerService = accessor.get(IComposerService);
+		await ComposerService.openComposer();
 	}
 }
 
-registerAction2(OpenWebUIComposerAction);
+registerAction2(OpenComposerComposerAction);
 
 // Register as workbench contribution
-class WebUIContribution implements IWorkbenchContribution {
-	static readonly ID = 'workbench.contrib.webui';
+class ComposerContribution implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.composer';
 
 	constructor(
 	) { }
 }
 
-registerWorkbenchContribution2(WebUIContribution.ID, WebUIContribution, {
+registerWorkbenchContribution2(ComposerContribution.ID, ComposerContribution, {
 	lazy: true
 });
 
 // Register webview editor
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory)
 	.registerEditorSerializer(
-		'webui.chat',
-		WebUIEditorInput
+		'Composer.chat',
+		ComposerEditorInput
 	);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
-		id: 'composer',
+		id: 'Composer',
 		title: 'Composer',
 		type: 'object',
 		properties: {

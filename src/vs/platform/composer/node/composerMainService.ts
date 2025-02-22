@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See LICENSE.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INativeHostService } from '../../..//platform/native/common/native.js';
-import { IWebUIService } from '../../../platform/webui/common/webuiService.js';
-import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { INativeHostService } from '../../native/common/native.js';
+import { IComposerService } from '../common/composerService.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 
-export class WebUIMainService implements IWebUIService {
+export class ComposerMainService implements IComposerService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(

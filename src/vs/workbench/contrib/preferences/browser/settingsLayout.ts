@@ -143,6 +143,11 @@ export const tocData: ITOCEntry<string> = {
 			]
 		},
 		{
+			id: 'composer',
+			label: localize('composer', "Composer"),
+			settings: ['composer.*'],
+		},
+		{
 			id: 'features',
 			label: localize('features', "Features"),
 			children: [

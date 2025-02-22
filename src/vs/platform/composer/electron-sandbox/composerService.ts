@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See LICENSE.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWebUIService, WebUIOptions } from '../common/webuiService.js';
+import { IComposerService, ComposerOptions } from '../common/composerService.js';
 
-export class WebUIDesktopService implements IWebUIService {
+export class ComposerDesktopService implements IComposerService {
 	readonly _serviceBrand: undefined;
 
 	constructor() { }
 
-	async openChat(options?: WebUIOptions): Promise<void> {
+	async openChat(options?: ComposerOptions): Promise<void> {
 		// Delegate to workbench service
 	}
 

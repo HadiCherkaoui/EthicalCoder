@@ -7,12 +7,12 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorSerializer } from '../../../common/editor.js';
 import { EditorModel } from '../../../common/editor/editorModel.js';
 
-export class WebUIEditorInput extends EditorInput implements IEditorSerializer {
+export class ComposerEditorInput extends EditorInput implements IEditorSerializer {
 
-	static readonly ID = 'webui.chat';
+	static readonly ID = 'Composer.chat';
 
 	override get typeId(): string {
-		return WebUIEditorInput.ID;
+		return ComposerEditorInput.ID;
 	}
 
 	override get resource(): undefined {
@@ -28,7 +28,7 @@ export class WebUIEditorInput extends EditorInput implements IEditorSerializer {
 	}
 
 	override matches(other: unknown): boolean {
-		return other instanceof WebUIEditorInput;
+		return other instanceof ComposerEditorInput;
 	}
 
 	canSupportSideBySide(): boolean {
@@ -45,6 +45,6 @@ export class WebUIEditorInput extends EditorInput implements IEditorSerializer {
 	}
 
 	deserialize(): EditorInput | undefined {
-		return new WebUIEditorInput();
+		return new ComposerEditorInput();
 	}
 }

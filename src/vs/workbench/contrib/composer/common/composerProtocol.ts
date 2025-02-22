@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See LICENSE.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface IWebUIMessage {
+export interface IComposerMessage {
 	type: 'ready' | 'command' | 'response' | 'error' | 'initialize';
 	requestId?: string;
 	payload?: any;
 }
 
-export interface IReadyMessage extends IWebUIMessage {
+export interface IReadyMessage extends IComposerMessage {
 	type: 'ready';
 }
 
-export interface IErrorMessage extends IWebUIMessage {
+export interface IErrorMessage extends IComposerMessage {
 	type: 'error';
 	payload: {
 		message: string;
@@ -21,9 +21,9 @@ export interface IErrorMessage extends IWebUIMessage {
 	};
 }
 
-export type WebUIMessage = IReadyMessage | ICommandMessage | IErrorMessage | IResponseMessage | IInitializeMessage;
+export type ComposerMessage = IReadyMessage | ICommandMessage | IErrorMessage | IResponseMessage | IInitializeMessage;
 
-export interface IInitializeMessage extends IWebUIMessage {
+export interface IInitializeMessage extends IComposerMessage {
 	type: 'initialize';
 	payload: {
 		version: string;
@@ -33,7 +33,7 @@ export interface IInitializeMessage extends IWebUIMessage {
 	};
 }
 
-export interface ICommandMessage extends IWebUIMessage {
+export interface ICommandMessage extends IComposerMessage {
 	type: 'command';
 	requestId: string;
 	payload: {
@@ -42,7 +42,7 @@ export interface ICommandMessage extends IWebUIMessage {
 	};
 }
 
-export interface IResponseMessage extends IWebUIMessage {
+export interface IResponseMessage extends IComposerMessage {
 	type: 'response';
 	requestId: string;
 	payload: {

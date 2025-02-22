@@ -148,7 +148,7 @@ import { IUserDataSyncLogService } from '../platform/userDataSync/common/userDat
 import { UserDataSyncLogService } from '../platform/userDataSync/common/userDataSyncLog.js';
 import { Registry } from '../platform/registry/common/platform.js';
 import { IInstantiationService } from '../platform/instantiation/common/instantiation.js';
-import { IWebUIService } from '../platform/webui/common/webuiService.js';
+import { IComposerService } from '../platform/composer/common/composerService.js';
 
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, InstantiationType.Delayed);
 registerSingleton(IAllowedExtensionsService, AllowedExtensionsService, InstantiationType.Delayed);
@@ -402,14 +402,14 @@ import './contrib/inlineCompletions/browser/inlineCompletions.contribution.js';
 import './contrib/dropOrPasteInto/browser/dropOrPasteInto.contribution.js';
 import { AllowedExtensionsService } from '../platform/extensionManagement/common/allowedExtensionsService.js';
 
-// WebUI
-import './contrib/webui/browser/webui.contribution.js';
+// composer
+import './contrib/composer/browser/composer.contribution.js';
 
 //#endregion
 
-// Debug check for WebUI service
+// Debug check for Composer service
 setTimeout(() => {
 	const instantiationService = Registry.as<IInstantiationService>('instantiationService');
-	const webUIService = instantiationService.invokeFunction(accessor => accessor.get(IWebUIService));
-	console.log('[WebUI] Service availability check:', !!webUIService, 'type:', webUIService?.constructor.name);
+	const ComposerService = instantiationService.invokeFunction(accessor => accessor.get(IComposerService));
+	console.log('[Composer] Service availability check:', !!ComposerService, 'type:', ComposerService?.constructor.name);
 }, 2000);

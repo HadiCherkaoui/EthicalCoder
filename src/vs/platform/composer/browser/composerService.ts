@@ -5,10 +5,10 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { IOpenerService } from '../../opener/common/opener.js';
-import { IWebUIService } from '../common/webuiService.js';
-import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { IComposerService } from '../common/composerService.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 
-export class WebUIService implements IWebUIService {
+export class ComposerService implements IComposerService {
 	readonly _serviceBrand: undefined;
 
 	constructor(

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See LICENSE.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWebUIService } from '../../../../platform/webui/common/webuiService.js';
+import { IComposerService } from '../../../../platform/composer/common/composerService.js';
 import { IWebviewWorkbenchService, WebviewInput } from '../../webviewPanel/browser/webviewWorkbenchService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -37,7 +37,7 @@ interface WebviewMessage {
 	content: { role: string; content: string };
 }
 
-export class WebUIWorkbenchService implements IWebUIService {
+export class ComposerWorkbenchService implements IComposerService {
 	readonly _serviceBrand: undefined;
 	private sessionsDirectoryUri: URI;
 	private sessionsIndexFile: URI;
@@ -55,19 +55,19 @@ export class WebUIWorkbenchService implements IWebUIService {
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
-		this.logService.info('[WebUI] Service constructed');
+		this.logService.info('[Composer] Service constructed');
 		const storagePath = this.environmentService.userRoamingDataHome;
-		this.logService.info('[WebUI] Storage path:', storagePath);
+		this.logService.info('[Composer] Storage path:', storagePath);
 
 		if (!storagePath) {
-			throw new Error('[WebUI] No storage path available');
+			throw new Error('[Composer] No storage path available');
 		}
 
 		this.sessionsDirectoryUri = URI.file(join(storagePath.fsPath, 'chatSessions'));
 		this.sessionsIndexFile = URI.file(join(storagePath.fsPath, 'chatSessions', 'chatSessionsIndex.json'));
 
-		this.logService.info('[WebUI] Sessions directory:', this.sessionsDirectoryUri.fsPath);
-		this.logService.info('[WebUI] Sessions index file:', this.sessionsIndexFile.fsPath);
+		this.logService.info('[Composer] Sessions directory:', this.sessionsDirectoryUri.fsPath);
+		this.logService.info('[Composer] Sessions index file:', this.sessionsIndexFile.fsPath);
 
 		this.initializeSessions();
 	}
@@ -77,7 +77,7 @@ export class WebUIWorkbenchService implements IWebUIService {
 			await this.ensureSessionsDirectoryExists();
 			await this.loadHistory();
 		} catch (e) {
-			this.logService.error('[WebUI] Failed to initialize sessions:', e);
+			this.logService.error('[Composer] Failed to initialize sessions:', e);
 			throw e;
 		}
 	}
@@ -85,21 +85,21 @@ export class WebUIWorkbenchService implements IWebUIService {
 	private async ensureSessionsDirectoryExists(): Promise<void> {
 		try {
 			const exists = await this.fileService.exists(this.sessionsDirectoryUri);
-			this.logService.info('[WebUI] Sessions directory exists:', exists);
+			this.logService.info('[Composer] Sessions directory exists:', exists);
 
 			if (!exists) {
 				await this.fileService.createFolder(this.sessionsDirectoryUri);
-				this.logService.info('[WebUI] Created sessions directory:', this.sessionsDirectoryUri.fsPath);
+				this.logService.info('[Composer] Created sessions directory:', this.sessionsDirectoryUri.fsPath);
 			}
 		} catch (e) {
-			this.logService.error('[WebUI] Error ensuring sessions directory exists:', e);
+			this.logService.error('[Composer] Error ensuring sessions directory exists:', e);
 			throw e;
 		}
 	}
 
 	private async loadHistory(): Promise<void> {
 		try {
-			this.logService.info('[WebUI] Loading history from:', this.sessionsIndexFile.fsPath);
+			this.logService.info('[Composer] Loading history from:', this.sessionsIndexFile.fsPath);
 
 			// Always start fresh
 			this.chatSessions = [];
@@ -107,7 +107,7 @@ export class WebUIWorkbenchService implements IWebUIService {
 
 			const exists = await this.fileService.exists(this.sessionsIndexFile);
 			if (!exists) {
-				this.logService.info('[WebUI] No history file found, creating default session');
+				this.logService.info('[Composer] No history file found, creating default session');
 				await this.createDefaultSession();
 				return;
 			}
@@ -127,10 +127,10 @@ export class WebUIWorkbenchService implements IWebUIService {
 					// Only add if not already in array (extra safety check)
 					if (!this.chatSessions.some(s => s.id === session.id)) {
 						this.chatSessions.push(session);
-						this.logService.info('[WebUI] Loaded session:', session.id, 'with', session.messages.length, 'messages');
+						this.logService.info('[Composer] Loaded session:', session.id, 'with', session.messages.length, 'messages');
 					}
 				} catch (e) {
-					this.logService.error('[WebUI] Failed to load session:', summary.id, e);
+					this.logService.error('[Composer] Failed to load session:', summary.id, e);
 				}
 			}
 
@@ -147,7 +147,7 @@ export class WebUIWorkbenchService implements IWebUIService {
 			}
 
 		} catch (e) {
-			this.logService.error('[WebUI] Error loading history:', e);
+			this.logService.error('[Composer] Error loading history:', e);
 			await this.createDefaultSession();
 		}
 	}
@@ -166,9 +166,9 @@ export class WebUIWorkbenchService implements IWebUIService {
 		try {
 			await this.saveSession(defaultSession);
 			await this.saveSessionsIndex();
-			this.logService.info('[WebUI] Created new session:', defaultSession.id);
+			this.logService.info('[Composer] Created new session:', defaultSession.id);
 		} catch (e) {
-			this.logService.error('[WebUI] Failed to save default session', e);
+			this.logService.error('[Composer] Failed to save default session', e);
 		}
 	}
 
@@ -176,7 +176,7 @@ export class WebUIWorkbenchService implements IWebUIService {
 		const chatNumber = session.id.split('-')[1];
 		const sessionFile = URI.file(join(this.sessionsDirectoryUri.fsPath, `chat-${chatNumber}.json`));
 		try {
-			this.logService.info('[WebUI] Saving session:', session.id, 'to', sessionFile.fsPath);
+			this.logService.info('[Composer] Saving session:', session.id, 'to', sessionFile.fsPath);
 			await this.fileService.writeFile(
 				sessionFile,
 				VSBuffer.fromString(JSON.stringify({
@@ -186,9 +186,9 @@ export class WebUIWorkbenchService implements IWebUIService {
 				}, null, 2))
 			);
 			await this.saveSessionsIndex();
-			this.logService.info('[WebUI] Successfully saved session:', session.id);
+			this.logService.info('[Composer] Successfully saved session:', session.id);
 		} catch (e) {
-			this.logService.error('[WebUI] Failed to save session:', session.id, e);
+			this.logService.error('[Composer] Failed to save session:', session.id, e);
 			throw e;
 		}
 	}
@@ -203,9 +203,9 @@ export class WebUIWorkbenchService implements IWebUIService {
 				this.sessionsIndexFile,
 				VSBuffer.fromString(JSON.stringify(indexData, null, 2))
 			);
-			this.logService.info('[WebUI] Saved sessions index with current session:', this.currentSessionId);
+			this.logService.info('[Composer] Saved sessions index with current session:', this.currentSessionId);
 		} catch (e) {
-			this.logService.error('[WebUI] Failed to save sessions index:', e);
+			this.logService.error('[Composer] Failed to save sessions index:', e);
 		}
 	}
 
@@ -224,10 +224,10 @@ export class WebUIWorkbenchService implements IWebUIService {
 						await this.createNewSession();
 						break;
 					default:
-						this.logService.warn('[WebUI] Unknown message type:', message.type);
+						this.logService.warn('[Composer] Unknown message type:', message.type);
 				}
 			} catch (e) {
-				this.logService.error('[WebUI] Error handling message:', e);
+				this.logService.error('[Composer] Error handling message:', e);
 			}
 		});
 
@@ -270,16 +270,16 @@ export class WebUIWorkbenchService implements IWebUIService {
 				});
 			}
 
-			this.logService.info('[WebUI] Created new session:', newSession.id);
+			this.logService.info('[Composer] Created new session:', newSession.id);
 		} catch (e) {
-			this.logService.error('[WebUI] Failed to create new session', e);
+			this.logService.error('[Composer] Failed to create new session', e);
 		}
 	}
 
 	private async switchSession(sessionId: string): Promise<void> {
 		const session = this.chatSessions.find(s => s.id === sessionId);
 		if (!session) {
-			this.logService.error('[WebUI] Failed to switch to session:', sessionId);
+			this.logService.error('[Composer] Failed to switch to session:', sessionId);
 			return;
 		}
 
@@ -300,9 +300,9 @@ export class WebUIWorkbenchService implements IWebUIService {
 				});
 			}
 
-			this.logService.info('[WebUI] Switched to session:', sessionId);
+			this.logService.info('[Composer] Switched to session:', sessionId);
 		} catch (e) {
-			this.logService.error('[WebUI] Error during session switch:', e);
+			this.logService.error('[Composer] Error during session switch:', e);
 		}
 	}
 
@@ -324,7 +324,7 @@ export class WebUIWorkbenchService implements IWebUIService {
 					contentOptions: { allowScripts: true, localResourceRoots: [] },
 					extension: undefined
 				},
-				'composerWebview',
+				'ComposerWebview',
 				'AI Composer',
 				{ preserveFocus: false }
 			);
@@ -756,7 +756,7 @@ export class WebUIWorkbenchService implements IWebUIService {
 
 			this.registerWebviewMessageListener(webviewInput);
 		} catch (error) {
-			this.logService.error('[WebUI] Failed to open composer:', error);
+			this.logService.error('[Composer] Failed to open Composer:', error);
 			throw error;
 		}
 	}
@@ -764,13 +764,13 @@ export class WebUIWorkbenchService implements IWebUIService {
 	public async addMessage(message: { role: string; content: string }): Promise<void> {
 		const currentSession = this.chatSessions.find(s => s.id === this.currentSessionId);
 		if (!currentSession) {
-			throw new Error('[WebUI] No current session found');
+			throw new Error('[Composer] No current session found');
 		}
 
 		currentSession.messages.push(message);
 		await this.saveSession(currentSession);
 		await this.saveSessionsIndex();
-		this.logService.info('[WebUI] Message added and saved to session:', this.currentSessionId);
+		this.logService.info('[Composer] Message added and saved to session:', this.currentSessionId);
 	}
 
 	dispose(): void {
