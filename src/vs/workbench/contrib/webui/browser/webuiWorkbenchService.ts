@@ -308,10 +308,11 @@ export class WebUIWorkbenchService implements IWebUIService {
 
 	public async openComposer(): Promise<void> {
 		try {
-			const endpoint = this.configurationService.getValue<string>('webui.endpoint');
-			const apiKey = this.configurationService.getValue<string>('webui.apiKey');
-			if (!endpoint || !apiKey) {
-				throw new Error('Missing endpoint or API key');
+			const baseurl = this.configurationService.getValue<string>('composer.baseurl');
+			const apiKey = this.configurationService.getValue<string>('composer.apiKey');
+			const origin = new URL(baseurl).origin;
+			if (!baseurl || !apiKey) {
+				throw new Error('Missing base URL or API key');
 			}
 
 			await this.loadHistory();
@@ -340,7 +341,7 @@ export class WebUIWorkbenchService implements IWebUIService {
 					<meta http-equiv="Content-Security-Policy" content="
 						default-src 'none';
 						script-src 'unsafe-inline' https://cdnjs.cloudflare.com;
-						connect-src ${endpoint};
+						connect-src ${origin};
 						style-src 'unsafe-inline' https://cdnjs.cloudflare.com;
 						font-src https://cdnjs.cloudflare.com;">
 										<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/vs2015.min.css">
@@ -561,7 +562,7 @@ export class WebUIWorkbenchService implements IWebUIService {
 
 						async function fetchModels() {
 						try {
-						const response = await fetch('${endpoint}/api/models', {
+						const response = await fetch('${baseurl}/models', {
 						headers: { 'Authorization': 'Bearer ${apiKey}' }
 						});
 						if (!response.ok) {
@@ -570,7 +571,7 @@ export class WebUIWorkbenchService implements IWebUIService {
 						const data = await response.json();
 						const select = document.getElementById('modelSelect');
 						select.innerHTML = data.data.map(model =>
-						\`<option value="\${model.id}">\${model.name}</option>\`
+						\`<option value="\${model.id}">\${model.id}</option>\`
 						).join('');
 						select.value = data.data[0]?.id || '';
 						select.dispatchEvent(new Event('change'));
@@ -635,7 +636,7 @@ export class WebUIWorkbenchService implements IWebUIService {
 						const messageData = { role: 'user', content: message };
 						currentSession.messages.push(messageData);
 						vscode.postMessage({ type: 'chatMessage', content: messageData });
-						const response = await fetch('${endpoint}/api/chat/completions', {
+						const response = await fetch('${baseurl}/chat/completions', {
 						method: 'POST',
 						headers: {
 							'Authorization': 'Bearer ${apiKey}',

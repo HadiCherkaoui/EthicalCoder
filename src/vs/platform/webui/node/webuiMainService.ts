@@ -16,7 +16,7 @@ export class WebUIMainService implements IWebUIService {
 	) { }
 
 	async openChat(): Promise<void> {
-		const endpoint = this.configurationService.getValue<string>('webui.endpoint') || 'http://localhost:3000';
+		const endpoint = this.configurationService.getValue<string>('composer.baseurl') || 'http://localhost:3000/api';
 		await this.nativeHostService.openExternal(endpoint);
 	}
 

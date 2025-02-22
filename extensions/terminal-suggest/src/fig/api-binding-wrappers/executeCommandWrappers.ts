@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See LICENSE.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { executeCommandTimeout } from './executeCommand';
+import { executeCommandTimeout } from '../execute.js';
 
 export const executeCommand: Fig.ExecuteCommandFunction = (args) =>
 	executeCommandTimeout(args);

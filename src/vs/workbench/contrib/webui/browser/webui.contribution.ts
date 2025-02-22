@@ -66,20 +66,22 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory)
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
-		id: 'webui',
-		title: 'Open WebUI',
+		id: 'composer',
+		title: 'Composer',
 		type: 'object',
 		properties: {
-			'webui.endpoint': {
+			'composer.baseurl': {
 				type: 'string',
-				default: 'http://localhost:3000',
-				description: 'Endpoint URL for the Open WebUI interface',
-				scope: ConfigurationScope.APPLICATION
+				default: 'http://localhost:3000/api',
+				description: 'Base URL for the Composer interface, can be any OpenAI compatible endpoint',
+				scope: ConfigurationScope.APPLICATION,
+				pattern: '^https?://.*',
+				patternErrorMessage: 'Must be a valid HTTP/HTTPS URL'
 			},
-			'webui.apiKey': {
+			'composer.apiKey': {
 				type: 'string',
 				default: '',
-				description: 'API key for authenticating with Open WebUI. Can be found in Settings > Account.',
+				description: 'API key for authenticating with OpenAI compatible API',
 				scope: ConfigurationScope.APPLICATION
 			}
 		}

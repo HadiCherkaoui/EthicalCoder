@@ -241,10 +241,10 @@
   "contributes": {
     "configuration": {
       "properties": {
-        "webui.endpoint": {
+        "composer.baseurl": {
           "type": "string",
-          "default": "http://localhost:3000",
-          "description": "Endpoint URL for the Open WebUI interface",
+          "default": "http://localhost:3000/api",
+          "description": "Base URL for the Composer interface, can be any OpenAI compatible endpoint",
           "pattern": "^https?://.*",
           "patternErrorMessage": "Must be a valid HTTP/HTTPS URL"
         }
