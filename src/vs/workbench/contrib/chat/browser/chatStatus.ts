@@ -3,20 +3,27 @@
  *  Licensed under the MIT License. See LICENSE.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import './media/chatStatus.css';
+import { safeIntl } from '../../../../base/common/date.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { language, OS } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, TooltipContent } from '../../../services/statusbar/browser/statusbar.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IChatEntitlementsService } from '../common/chatEntitlementsService.js';
 import { IChatQuotasService } from '../common/chatQuotasService.js';
-import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, CHAT_SETUP_ACTION_LABEL, TOGGLE_CHAT_ACTION_ID } from './actions/chatActions.js';
+import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, CHAT_SETUP_ACTION_LABEL, TOGGLE_CHAT_ACTION_ID, CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
+import { $, addDisposableListener, append, EventType } from '../../../../base/browser/dom.js';
+import { IChatEntitlementsService } from '../common/chatEntitlementsService.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { defaultCheckboxStyles, defaultKeybindingLabelStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
@@ -25,6 +32,9 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	private readonly treatment = this.assignmentService.getTreatment<boolean>('config.chat.experimental.statusIndicator.enabled'); //TODO@bpasero remove this experiment eventually
 
 	private entry: IStatusbarEntryAccessor | undefined = undefined;
+	private readonly entryDisposables = this._register(new MutableDisposable());
+
+	private dateFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
@@ -33,7 +43,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@IProductService private readonly productService: IProductService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -80,10 +91,13 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	}
 
 	private getEntryProps(): IStatusbarEntry {
+		const disposables = new DisposableStore();
+		this.entryDisposables.value = disposables;
+
 		let text = '$(copilot)';
 		let ariaLabel = localize('chatStatus', "Copilot Status");
 		let command = TOGGLE_CHAT_ACTION_ID;
-		let tooltip: string | IManagedHoverTooltipMarkdownString = localize('openChat', "Open Chat ({0})", this.keybindingService.lookupKeybinding(command)?.getLabel() ?? '');
+		let tooltip: TooltipContent = localize('openChat', "Open Chat ({0})", this.keybindingService.lookupKeybinding(command)?.getLabel() ?? '');
 
 		// Quota Exceeded
 		const { chatQuotaExceeded, completionsQuotaExceeded } = this.chatQuotasService.quotas;
@@ -120,28 +134,51 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 		// Copilot Limited User
 		else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.limited.key) === true) {
-			const that = this;
-			tooltip = {
-				async markdown(token) {
-					const entitlements = await that.chatEntitlementsService.resolve(token);
+			tooltip = () => {
+				const container = $('div.chat-status-bar-entry-tooltip');
 
-					if (token.isCancellationRequested || !entitlements?.quotas) {
-						return;
-					}
+				// Quota Indicator
+				const { chatTotal, chatRemaining, completionsTotal, completionsRemaining, quotaResetDate } = this.chatQuotasService.quotas;
 
-					const { chatTotal, chatRemaining, completionsTotal, completionsRemaining } = entitlements.quotas;
-					if (typeof chatRemaining === 'number' && typeof chatTotal === 'number' && typeof completionsRemaining === 'number' && typeof completionsTotal === 'number') {
-						return new MarkdownString([
-							localize('limitTitle', "You are currently using Copilot Free"),
-							'---',
-							localize('limitChatQuota', "<code>{0}</code> of <code>{1}</code> chats remaining", chatRemaining, chatTotal),
-							localize('limitCompletionsQuota', "<code>{0}</code> of <code>{1}</code> code completions remaining", completionsRemaining, completionsTotal),
-						].join('\n\n'), { supportHtml: true });
-					}
+				container.appendChild($('div', undefined, localize('limitTitle', "You are currently using Copilot Free:")));
 
-					return undefined;
-				},
-				markdownNotSupportedFallback: undefined
+				const chatQuotaIndicator = this.createQuotaIndicator(container, chatTotal, chatRemaining, localize('chatsLabel', "Chat Messages"));
+				const completionsQuotaIndicator = this.createQuotaIndicator(container, completionsTotal, completionsRemaining, localize('completionsLabel', "Code Completions"));
+
+				this.chatEntitlementsService.resolve(CancellationToken.None).then(() => {
+					const { chatTotal, chatRemaining, completionsTotal, completionsRemaining } = this.chatQuotasService.quotas;
+
+					chatQuotaIndicator(chatTotal, chatRemaining);
+					completionsQuotaIndicator(completionsTotal, completionsRemaining);
+				});
+
+				container.appendChild($('div', undefined, localize('limitQuota', "Limits will reset on {0}.", this.dateFormatter.format(quotaResetDate))));
+
+				// Settings
+				container.appendChild(document.createElement('hr'));
+				this.createSettings(container, disposables);
+
+				// Shortcuts
+				container.appendChild(document.createElement('hr'));
+				this.createShortcuts(container, disposables);
+
+				return container;
+			};
+		}
+
+		// Any other User
+		else {
+			tooltip = () => {
+				const container = $('div.chat-status-bar-entry-tooltip');
+
+				// Settings
+				this.createSettings(container, disposables);
+
+				// Shortcuts
+				container.appendChild($('hr'));
+				this.createShortcuts(container, disposables);
+
+				return container;
 			};
 		}
 
@@ -154,5 +191,86 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			kind: 'copilot',
 			tooltip
 		};
+	}
+
+	private createQuotaIndicator(container: HTMLElement, total: number | undefined, remaining: number | undefined, label: string): (total: number | undefined, remaining: number | undefined) => void {
+		const quotaText = $('span');
+		const quotaBit = $('div.quota-bit');
+
+		container.appendChild($('div.quota-indicator', undefined,
+			$('div.quota-label', undefined,
+				$('span', undefined, label),
+				quotaText
+			),
+			$('div.quota-bar', undefined,
+				quotaBit
+			)
+		));
+
+		const update = (total: number | undefined, remaining: number | undefined) => {
+			if (typeof total === 'number' && typeof remaining === 'number') {
+				quotaText.textContent = localize('quotaDisplay', "{0} / {1}", remaining, total);
+				quotaBit.style.width = `${(remaining / total) * 100}%`;
+			}
+		};
+
+		update(total, remaining);
+
+		return update;
+	}
+
+	private createShortcuts(container: HTMLElement, disposables: DisposableStore): HTMLElement {
+		const shortcuts = container.appendChild($('div.shortcuts'));
+
+		const openChat = { text: localize('shortcuts.chat', "Chat"), id: CHAT_OPEN_ACTION_ID };
+		const openCopilotEdits = { text: localize('shortcuts.copilotEdits', "Copilot Edits"), id: 'workbench.action.chat.openEditSession' };
+		const inlineChat = { text: localize('shortcuts.inlineChat', "Inline Chat"), id: 'inlineChat.start' };
+
+		for (const entry of [openChat, openCopilotEdits, inlineChat]) {
+			const keys = this.keybindingService.lookupKeybinding(entry.id);
+			if (!keys) {
+				continue;
+			}
+
+			const shortcut = append(shortcuts, $('div.shortcut'));
+
+			append(shortcut, $('span.shortcut-label', undefined, entry.text));
+
+			const shortcutKey = disposables.add(new KeybindingLabel(shortcut, OS, { ...defaultKeybindingLabelStyles }));
+			shortcutKey.set(keys);
+		}
+
+		return shortcuts;
+	}
+
+	private createSettings(container: HTMLElement, disposables: DisposableStore): HTMLElement {
+		const settings = container.appendChild($('div.settings'));
+
+		const toggleCompletions = { text: localize('settings.toggleCompletions', "Code Completions"), id: 'editor.inlineSuggest.enabled' };
+		const toggleNextEditSuggestions = { text: localize('settings.toggleNextEditSuggestions', "Next Edit Suggestions (Preview)"), id: 'github.copilot.nextEditSuggestions.enabled' };
+
+		for (const entry of [toggleCompletions, toggleNextEditSuggestions]) {
+			const checked = Boolean(this.configurationService.getValue<boolean>(entry.id));
+
+			const setting = append(settings, $('div.setting'));
+
+			const checkbox = this._register(new Checkbox(entry.text, checked, defaultCheckboxStyles));
+			setting.appendChild(checkbox.domNode);
+
+			const settingLabel = append(setting, $('span.setting-label', undefined, entry.text));
+			disposables.add(addDisposableListener(settingLabel, EventType.CLICK, e => {
+				if (checkbox?.enabled && (e.target as HTMLElement).tagName !== 'A') {
+					checkbox.checked = !checkbox.checked;
+					this.configurationService.updateValue(entry.id, checkbox.checked);
+					checkbox.focus();
+				}
+			}));
+
+			disposables.add(checkbox.onChange(() => {
+				this.configurationService.updateValue(entry.id, checkbox.checked);
+			}));
+		}
+
+		return settings;
 	}
 }

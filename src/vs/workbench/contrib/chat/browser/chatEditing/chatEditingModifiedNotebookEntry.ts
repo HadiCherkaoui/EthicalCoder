@@ -393,6 +393,8 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				return d;
 			});
 			this._cellDiffInfo.set(diff, undefined);
+			const changeCount = countChanges(this._cellDiffInfo.get());
+			this._changesCount.set(changeCount, undefined);
 		}
 	}
 
@@ -567,8 +569,13 @@ function createSnapshot(notebook: NotebookTextModel, transientOptions: Transient
 }
 
 function restoreSnapshot(notebook: NotebookTextModel, snapshot: string): void {
-	const { transientOptions, data } = deserializeSnapshot(snapshot);
-	notebook.restoreSnapshot(data, transientOptions);
+	try {
+		const { transientOptions, data } = deserializeSnapshot(snapshot);
+		notebook.restoreSnapshot(data, transientOptions);
+	}
+	catch (ex) {
+		console.error('Error restoring Notebook snapshot', ex);
+	}
 }
 
 function serializeSnapshot(data: NotebookData, transientOptions: TransientOptions | undefined): string {

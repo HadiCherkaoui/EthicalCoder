@@ -164,7 +164,7 @@ import { assertNoRpc } from '../utils';
 		await closeTerminalAsync(terminal);
 	});
 
-	test.skip('TerminalShellExecution.read events should fire with contents of command', async () => {
+	test('TerminalShellExecution.read events should fire with contents of command', async () => {
 		const { terminal, shellIntegration } = await createTerminalAndWaitForShellIntegration();
 		const events: string[] = [];
 
@@ -179,7 +179,7 @@ import { assertNoRpc } from '../utils';
 		await closeTerminalAsync(terminal);
 	});
 
-	test.skip('TerminalShellExecution.read events should give separate iterables per call', async () => {
+	test('TerminalShellExecution.read events should give separate iterables per call', async () => {
 		const { terminal, shellIntegration } = await createTerminalAndWaitForShellIntegration();
 
 		const { execution, endEvent } = executeCommandAsync(shellIntegration, 'echo hello');
